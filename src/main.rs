@@ -58,6 +58,10 @@ fn midi_playback(
     mut playback: ResMut<MidiPlayer>,
     mut query: Query<(&MidiEntity, &MidiKey, &MidiAction, &mut Transform)>,
 ) {
+    if !playback.playing {
+        return;
+    }
+
     let previous = playback.position;
     playback.position += time.delta_secs();
 
