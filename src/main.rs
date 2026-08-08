@@ -1,6 +1,10 @@
 use std::f32;
 
 use bevy::prelude::*;
+use bevy_egui::{
+    EguiContexts, EguiPlugin, EguiPrimaryContextPass,
+    egui::{self, LayerId, Ui, UiBuilder},
+};
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use movemymidi::midi::{
     entity::{MidiAction, MidiEntity, MidiEventAction, MidiKey},
@@ -8,6 +12,12 @@ use movemymidi::midi::{
 };
 
 const PRE_MOTION_DURATION: f32 = 0.1;
+
+#[derive(Resource, PartialEq, Eq)]
+enum AppMode {
+    Editor,
+    Simulation,
+}
 
 fn main() {
     App::new()
@@ -37,10 +47,13 @@ fn main() {
                 },
             ],
         })
+        .insert_resource(AppMode::Editor)
         .add_plugins(DefaultPlugins)
         .add_plugins(PanOrbitCameraPlugin)
+        .add_plugins(EguiPlugin::default())
         .add_systems(Startup, (setup, add_test_entity).chain())
         .add_systems(Update, (midi_playback, keyboard_input).chain())
+        .add_systems(EguiPrimaryContextPass, ui_system)
         .run();
 }
 
@@ -56,8 +69,53 @@ fn setup(mut commands: Commands) {
     ));
 }
 
-fn keyboard_input(mut playback: ResMut<MidiPlayer>, keys: Res<ButtonInput<KeyCode>>) {
-    if keys.just_pressed(KeyCode::Space) {
+fn ui_system(
+    mut contexts: EguiContexts,
+    mut app_mode: ResMut<AppMode>,
+    mut playback: ResMut<MidiPlayer>,
+) {
+    let ctx = contexts.ctx_mut().unwrap();
+    let mut viewport_ui = Ui::new(
+        ctx.clone(),
+        "viewport".into(),
+        UiBuilder::new()
+            .layer_id(LayerId::background())
+            .max_rect(ctx.viewport_rect()),
+    );
+
+    egui::Panel::top("toolbar").show(&mut viewport_ui, |ui| {
+        ui.horizontal(|ui| {
+            // ui.menu_button("File", |ui| {
+            //     if ui.button("Import Model").clicked() {
+            //         println!("Import Model clicked")
+            //     }
+            // });
+
+            if ui
+                .selectable_label(*app_mode == AppMode::Editor, "Editor")
+                .clicked()
+            {
+                *app_mode = AppMode::Editor;
+                playback.playing = false;
+                // TODO: ensure we restore item transforms
+            }
+
+            if ui
+                .selectable_label(*app_mode == AppMode::Simulation, "Simulation")
+                .clicked()
+            {
+                *app_mode = AppMode::Simulation;
+            }
+        });
+    });
+}
+
+fn keyboard_input(
+    mode: Res<AppMode>,
+    mut playback: ResMut<MidiPlayer>,
+    keys: Res<ButtonInput<KeyCode>>,
+) {
+    if keys.just_pressed(KeyCode::Space) && mode.into_inner() == &AppMode::Simulation {
         playback.playing = !playback.playing
     }
 }
