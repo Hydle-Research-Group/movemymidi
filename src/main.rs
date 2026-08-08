@@ -61,35 +61,41 @@ fn midi_playback(
     let previous = playback.position;
     playback.position += time.delta_secs();
 
+    let current_position = playback.position;
+
     for event in &midi.events {
+        let note_start = event.start;
+        let note_duration = event.duration;
         let note_end = event.start + event.duration;
 
-        if previous < event.start && event.start <= playback.position {
-            for (_, key, motion, mut transform) in &mut query {
-                if key.0 == event.key {
-                    for action in &motion.actions {
-                        match action {
-                            MidiEventAction::Move(xyz) => transform.translation += xyz,
-                            MidiEventAction::Rotate(xyz) => {
-                                transform.rotation +=
-                                    Quat::from_euler(EulerRot::XYZ, xyz.x, xyz.y, xyz.z)
-                            }
-                            MidiEventAction::Scale(xyz) => transform.scale += xyz,
+        for (_, key, motion, mut transform) in &mut query {
+            if event.key != key.0 {
+                continue;
+            }
+
+            for action in &motion.actions {
+                match action {
+                    MidiEventAction::Move(xyz) => {
+                        if previous < note_start && note_start <= current_position {
+                            transform.translation += xyz
+                        } else if previous < note_end && note_end <= current_position {
+                            transform.translation -= xyz
                         }
                     }
-                }
-            }
-        } else if previous < note_end && note_end <= playback.position {
-            for (_, key, motion, mut transform) in &mut query {
-                if key.0 == event.key {
-                    for action in &motion.actions {
-                        match action {
-                            MidiEventAction::Move(xyz) => transform.translation -= xyz,
-                            MidiEventAction::Rotate(xyz) => {
-                                transform.rotation -=
-                                    Quat::from_euler(EulerRot::XYZ, xyz.x, xyz.y, xyz.z)
-                            }
-                            MidiEventAction::Scale(xyz) => transform.scale -= xyz,
+                    MidiEventAction::Rotate(xyz) => {
+                        if previous < note_start && note_start <= current_position {
+                            transform.rotation +=
+                                Quat::from_euler(EulerRot::XYZ, xyz.x, xyz.y, xyz.z)
+                        } else if previous < note_end && note_end <= current_position {
+                            transform.rotation -=
+                                Quat::from_euler(EulerRot::XYZ, xyz.x, xyz.y, xyz.z)
+                        }
+                    }
+                    MidiEventAction::Scale(xyz) => {
+                        if previous < note_start && note_start <= current_position {
+                            transform.scale += xyz
+                        } else if previous < note_end && note_end <= current_position {
+                            transform.scale -= xyz
                         }
                     }
                 }
