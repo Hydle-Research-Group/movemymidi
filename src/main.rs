@@ -40,7 +40,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(PanOrbitCameraPlugin)
         .add_systems(Startup, (setup, add_test_entity).chain())
-        .add_systems(Update, midi_playback)
+        .add_systems(Update, (midi_playback, keyboard_input).chain())
         .run();
 }
 
@@ -54,6 +54,12 @@ fn setup(mut commands: Commands) {
             ..Default::default()
         },
     ));
+}
+
+fn keyboard_input(mut playback: ResMut<MidiPlayer>, keys: Res<ButtonInput<KeyCode>>) {
+    if keys.just_pressed(KeyCode::Space) {
+        playback.playing = !playback.playing
+    }
 }
 
 fn midi_playback(
