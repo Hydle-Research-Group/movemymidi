@@ -1,9 +1,13 @@
+use std::f32;
+
 use bevy::prelude::*;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use movemymidi::midi::{
     entity::{MidiAction, MidiEntity, MidiEventAction, MidiKey},
     player::{MidiFile, MidiPlaybackEvent, MidiPlayer},
 };
+
+const PRE_MOTION_DURATION: f32 = 0.1;
 
 fn main() {
     App::new()
@@ -78,29 +82,29 @@ fn midi_playback(
             }
 
             for action in &motion.actions {
-                match action {
-                    MidiEventAction::Move(xyz) => {
-                        if previous < note_start && note_start <= current_position {
-                            transform.translation += xyz
-                        } else if previous < note_end && note_end <= current_position {
-                            transform.translation -= xyz
-                        }
-                    }
-                    MidiEventAction::Rotate(xyz) => {
-                        if previous < note_start && note_start <= current_position {
+                if ((note_start - current_position) <= PRE_MOTION_DURATION
+                    && note_start > current_position)
+                    || (previous < note_start && note_start <= current_position)
+                {
+                    match action {
+                        MidiEventAction::Move(xyz) => transform.translation += xyz / 2.0,
+                        MidiEventAction::Rotate(xyz) => {
                             transform.rotation +=
-                                Quat::from_euler(EulerRot::XYZ, xyz.x, xyz.y, xyz.z)
-                        } else if previous < note_end && note_end <= current_position {
-                            transform.rotation -=
-                                Quat::from_euler(EulerRot::XYZ, xyz.x, xyz.y, xyz.z)
+                                Quat::from_euler(EulerRot::XYZ, xyz.x, xyz.y, xyz.z) / 2.0
                         }
+                        MidiEventAction::Scale(xyz) => transform.scale += xyz / 2.0,
                     }
-                    MidiEventAction::Scale(xyz) => {
-                        if previous < note_start && note_start <= current_position {
-                            transform.scale += xyz
-                        } else if previous < note_end && note_end <= current_position {
-                            transform.scale -= xyz
+                } else if ((note_end - current_position) <= PRE_MOTION_DURATION
+                    && note_end > current_position)
+                    || (previous < note_end && note_end <= current_position)
+                {
+                    match action {
+                        MidiEventAction::Move(xyz) => transform.translation -= xyz / 2.0,
+                        MidiEventAction::Rotate(xyz) => {
+                            transform.rotation -=
+                                Quat::from_euler(EulerRot::XYZ, xyz.x, xyz.y, xyz.z) / 2.0
                         }
+                        MidiEventAction::Scale(xyz) => transform.scale -= xyz / 2.0,
                     }
                 }
             }
