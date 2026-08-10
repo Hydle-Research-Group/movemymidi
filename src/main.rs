@@ -22,7 +22,8 @@ enum AppMode {
 fn main() {
     App::new()
         .insert_resource(MidiPlayer {
-            position: 0.0,
+            current_position: 0.0,
+            last_position: 0.0,
             playing: true,
         })
         .insert_resource(MidiFile {
@@ -52,7 +53,10 @@ fn main() {
         .add_plugins(PanOrbitCameraPlugin)
         .add_plugins(EguiPlugin::default())
         .add_systems(Startup, (setup, add_test_entity).chain())
-        .add_systems(Update, (midi_playback, keyboard_input).chain())
+        .add_systems(
+            Update,
+            (playback_system, midi_playback, keyboard_input).chain(),
+        )
         .add_systems(EguiPrimaryContextPass, ui_system)
         .run();
 }
@@ -85,12 +89,6 @@ fn ui_system(
 
     egui::Panel::top("toolbar").show(&mut viewport_ui, |ui| {
         ui.horizontal(|ui| {
-            // ui.menu_button("File", |ui| {
-            //     if ui.button("Import Model").clicked() {
-            //         println!("Import Model clicked")
-            //     }
-            // });
-
             if ui
                 .selectable_label(*app_mode == AppMode::Editor, "Editor")
                 .clicked()
@@ -108,6 +106,22 @@ fn ui_system(
             }
         });
     });
+
+    if *app_mode == AppMode::Simulation {
+        egui::Panel::bottom("playback_controls").show(&mut viewport_ui, |ui| {
+            ui.horizontal(|ui| {
+                if ui.selectable_label(playback.playing, "|<").clicked() {
+                    playback.reset();
+                }
+
+                if ui.selectable_label(playback.playing, "Play").clicked() {
+                    playback.playing = !playback.playing
+                }
+
+                ui.label(&format!("Time Elapsed (s): {}", playback.current_position));
+            });
+        });
+    }
 }
 
 fn keyboard_input(
@@ -120,20 +134,26 @@ fn keyboard_input(
     }
 }
 
+fn playback_system(time: Res<Time>, mut playback: ResMut<MidiPlayer>) {
+    if !playback.playing {
+        return;
+    }
+
+    playback.last_position = playback.current_position;
+    playback.current_position += time.delta_secs();
+}
+
 fn midi_playback(
-    time: Res<Time>,
     midi: Res<MidiFile>,
-    mut playback: ResMut<MidiPlayer>,
+    playback: ResMut<MidiPlayer>,
     mut query: Query<(&MidiEntity, &MidiKey, &MidiAction, &mut Transform)>,
 ) {
     if !playback.playing {
         return;
     }
 
-    let previous = playback.position;
-    playback.position += time.delta_secs();
-
-    let current_position = playback.position;
+    let previous = playback.last_position;
+    let current_position = playback.current_position;
 
     for event in &midi.events {
         let note_start = event.start;
